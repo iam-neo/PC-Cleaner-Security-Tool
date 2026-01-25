@@ -1,4 +1,4 @@
-# PC Cleaner & Security Tool - Desktop Shortcut Creator
+4# PC Cleaner & Security Tool - Desktop Shortcut Creator
 # This script creates a desktop shortcut for easy access
 
 $WScriptShell = New-Object -ComObject WScript.Shell
