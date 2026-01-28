@@ -18,6 +18,8 @@ Structure:
 - Hardening: Remediation functions.
 """
 
+from utils.system_info import ensure_windows_os
+
 class SecurityHardener:
     """
     Main class for Security Hardening operations.
@@ -25,16 +27,14 @@ class SecurityHardener:
     def __init__(self):
         """
         Initialize the Security Hardener.
-        TODO: initialization logic (e.g. locating sigcheck).
         """
-        pass
+        self.check_os()
 
     def check_os(self):
         """
         Check if the current OS is Windows.
-        TODO: Implement OS detection logic.
         """
-        pass
+        return ensure_windows_os(raise_exception=False)
 
     # ==========================================
     # TODO: Security Audit Functions

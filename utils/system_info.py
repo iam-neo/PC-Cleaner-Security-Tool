@@ -118,3 +118,22 @@ def is_admin() -> bool:
 def get_user_profile_path() -> str:
     """Get the current user's profile path"""
     return os.environ.get('USERPROFILE', '')
+
+
+def ensure_windows_os(raise_exception: bool = True) -> bool:
+    """
+    Ensure the current OS is Windows.
+    
+    Args:
+        raise_exception (bool): If True, raise OSError if not Windows.
+        
+    Returns:
+        bool: True if Windows, False otherwise.
+    """
+    is_windows = platform.system() == "Windows"
+    if not is_windows:
+        msg = f"This feature is only supported on Windows. Detected: {platform.system()}"
+        if raise_exception:
+            raise OSError(msg)
+        return False
+    return True
