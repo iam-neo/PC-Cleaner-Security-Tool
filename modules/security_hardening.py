@@ -18,6 +18,10 @@ Structure:
 - Hardening: Remediation functions.
 """
 
+import os
+import shutil
+import subprocess
+from typing import List, Dict, Optional
 from utils.system_info import ensure_windows_os
 
 class SecurityHardener:
@@ -29,6 +33,11 @@ class SecurityHardener:
         Initialize the Security Hardener.
         """
         self.check_os()
+        self.sigcheck_path = self._find_sigcheck()
+
+    def _find_sigcheck(self) -> Optional[str]:
+        """Find sigcheck.exe in PATH or common locations"""
+        return shutil.which("sigcheck.exe") or shutil.which("sigcheck")
 
     def check_os(self):
         """
@@ -37,24 +46,144 @@ class SecurityHardener:
         return ensure_windows_os(raise_exception=False)
 
     # ==========================================
-    # TODO: Security Audit Functions
+    # Security Audit Functions
     # ==========================================
-    def audit_startup(self):
+    def audit_startup(self) -> List[Dict]:
         """
         Audit startup locations (Startup folders + Registry Run keys).
-        TODO: Implement registry and file system checks.
+        Returns a list of dicts with file info and signature status.
         """
-        pass
+        if not self.check_os():
+            return []
+
+        items = []
+        try:
+            import winreg
+            
+            # 1. Registry Run Keys
+            registry_paths = [
+                (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Run"),
+                (winreg.HKEY_LOCAL_MACHINE, r"Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Run"),
+                (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run"),
+            ]
+
+            for root, path in registry_paths:
+                try:
+                    with winreg.OpenKey(root, path, 0, winreg.KEY_READ) as key:
+                        i = 0
+                        while True:
+                            try:
+                                name, value, _ = winreg.EnumValue(key, i)
+                                items.append({
+                                    "location": "Registry",
+                                    "path": path,
+                                    "name": name,
+                                    "command": value,
+                                    "root": "HKLM" if root == winreg.HKEY_LOCAL_MACHINE else "HKCU"
+                                })
+                                i += 1
+                            except OSError:
+                                break
+                except OSError:
+                    continue 
+
+            # 2. Startup Folders
+            startup_dirs = [
+                os.path.join(os.getenv("APPDATA", ""), r"Microsoft\Windows\Start Menu\Programs\Startup"),
+                os.path.join(os.getenv("PROGRAMDATA", ""), r"Microsoft\Windows\Start Menu\Programs\Startup")
+            ]
+            
+            for folder in startup_dirs:
+                if os.path.exists(folder):
+                    for file in os.listdir(folder):
+                        full_path = os.path.join(folder, file)
+                        if os.path.isfile(full_path):
+                            items.append({
+                                "location": "Startup Folder",
+                                "path": folder,
+                                "name": file,
+                                "command": full_path,
+                                "root": "FileSystem"
+                            })
+
+            # Check signatures
+            for item in items:
+                # Extract clean path from command
+                cmd = item["command"]
+                exe_path = cmd
+                if cmd.startswith('"'):
+                    exe_path = cmd.split('"')[1]
+                elif " " in cmd and not os.path.exists(cmd):
+                    # Simple heuristic for unquoted paths with args
+                    exe_path = cmd.split(" ")[0]
+                
+                # Check for existence before verifying
+                if not os.path.exists(exe_path) and os.path.exists(cmd):
+                     exe_path = cmd
+                     
+                sig_info = self._verify_signature(exe_path)
+                item.update(sig_info)
+                
+            return items
+
+        except Exception as e:
+            print(f"Audit failed: {e}")
+            return []
 
     # ==========================================
-    # TODO: Digital Signature Verification
+    # Digital Signature Verification
     # ==========================================
-    def _verify_signature(self, filepath):
+    def _verify_signature(self, filepath: str) -> Dict:
         """
         Check digital signature for a specific file.
-        TODO: Implement sigcheck.exe wrapper or fallback logic.
+        Uses sigcheck if available, else falls back to basic existence check.
         """
-        pass
+        result = {
+            "path": filepath,
+            "signed": False,
+            "verified": False,
+            "publisher": "Unknown",
+            "method": "fallback"
+        }
+        
+        if not filepath or not os.path.exists(filepath):
+            result["publisher"] = "File not found"
+            return result
+
+        # Method 1: Sigcheck (Preferred)
+        if self.sigcheck_path:
+            try:
+                # -a: extended info, -q: quiet, -v: csv output (simplifies parsing)
+                cmd = [self.sigcheck_path, "-a", "-q", "-v", filepath]
+                proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+                output = proc.stdout
+                
+                # Check verification string
+                if "Verified:\tSigned" in output or "Verified:	Signed" in output:
+                     result["signed"] = True
+                     result["verified"] = True
+                     result["method"] = "sigcheck"
+                     
+                     # Extract publisher
+                     for line in output.splitlines():
+                         if line.startswith("Publisher:"):
+                             result["publisher"] = line.split(":", 1)[1].strip()
+                             break # Found valid publisher
+                elif "Verified" in output:
+                    # Capture unverified state explicitly if needed
+                    pass
+                    
+                return result
+            except Exception:
+                pass # Fall through to fallback
+
+        # Method 2: Fallback (Basic)
+        # Without external libs like pefile/pywin32, we can't reliably verify signatures.
+        # We mark as "Unknown" but acknowledge file exists.
+        result["publisher"] = "Unverifiable (Missing sigcheck)"
+        result["method"] = "none"
+        
+        return result
 
     # ==========================================
     # System Posture Checks
