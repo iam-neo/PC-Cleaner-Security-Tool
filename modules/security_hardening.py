@@ -270,15 +270,79 @@ class SecurityHardener:
             return (f"Error: {str(e)}", "Active", True)
 
     # ==========================================
-    # TODO: Safe Remediation Layer
+    # Safe Remediation Layer
     # ==========================================
-    def apply_security_best_practices(self, dry_run=True):
+    def apply_security_best_practices(self, dry_run: bool = True) -> List[str]:
         """
         Apply security hardening changes.
         
         Args:
             dry_run (bool): If True, simulate changes only.
             
-        TODO: Implement hardening logic with admin check.
+        Returns:
+            List[str]: Log of actions taken.
         """
-        pass
+        logs = []
+        if not self.check_os():
+            return ["Skipped: Non-Windows OS"]
+
+        # 1. Check Admin Privileges
+        try:
+            import ctypes
+            is_admin = ctypes.windll.shell32.IsUserAnAdmin()
+        except:
+            is_admin = False
+             
+        if not is_admin and not dry_run:
+            return ["Failed: Administrator privileges required to apply changes."]
+
+        # 2. Check current posture to avoid blind toggling
+        posture = self.check_posture()
+        
+        # 3. Define Remediation Actions
+        # Format: (CheckName, DesiredState, ActionName, ActionFunc)
+        uac_current, _, uac_needs_fix = posture.get("UAC", ("Unknown", "Enabled", False))
+        fw_current, _, fw_needs_fix = posture.get("Windows Firewall", ("Unknown", "On", False))
+        
+        actions_to_take = []
+        
+        if uac_needs_fix:
+            actions_to_take.append(("UAC", "Enabled", "Enable UAC", self._enable_uac))
+        
+        if fw_needs_fix:
+             actions_to_take.append(("Firewall", "On", "Enable Firewall", self._enable_firewall))
+
+        if not actions_to_take:
+            return ["System is already hardened. No changes needed."]
+
+        # 4. Execute Actions
+        for system, target, name, func in actions_to_take:
+            if dry_run:
+                logs.append(f"[DRY RUN] Would execute: {name} (Current: {posture.get(system)[0]})")
+            else:
+                try:
+                    result = func()
+                    logs.append(f"[SUCCESS] {name}: {result}")
+                except Exception as e:
+                    logs.append(f"[ERROR] Failed to {name}: {str(e)}")
+                    
+        return logs
+
+    def _enable_uac(self) -> str:
+        """Enable UAC via Registry (Requires Admin)"""
+        import winreg
+        try:
+            key_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
+            # Open key with write access
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path, 0, winreg.KEY_SET_VALUE) as key:
+                winreg.SetValueEx(key, "EnableLUA", 0, winreg.REG_DWORD, 1)
+            return "UAC Enabled. Reboot required for full effect."
+        except Exception as e:
+            raise e
+
+    def _enable_firewall(self) -> str:
+        """Enable Firewall via netsh (Requires Admin)"""
+        # netsh advfirewall set allprofiles state on
+        cmd = ["netsh", "advfirewall", "set", "allprofiles", "state", "on"]
+        subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return "Windows Firewall enabled for all profiles."
