@@ -7,6 +7,7 @@ import sys
 from ui.dashboard import DashboardTab
 from ui.cleaner_tab import CleanerTab
 from ui.scanner_tab import ScannerTab
+from ui.security_tab import SecurityTab
 from utils.system_info import is_admin
 import config
 
@@ -40,6 +41,7 @@ class PCCleanerApp(ctk.CTk):
         self.dashboard = DashboardTab(self.main_frame, self)
         self.cleaner_tab = CleanerTab(self.main_frame, self)
         self.scanner_tab = ScannerTab(self.main_frame, self)
+        self.security_tab = SecurityTab(self.main_frame, self)
         
         # Show dashboard by default
         self.current_tab = None
@@ -107,6 +109,18 @@ class PCCleanerApp(ctk.CTk):
             hover_color=("gray70", "gray30")
         )
         self.scanner_btn.grid(row=4, column=0, padx=20, pady=10, sticky="ew")
+
+        self.security_btn = ctk.CTkButton(
+            sidebar,
+            text="🔒 Security Guard",
+            command=self.show_security,
+            height=40,
+            anchor="w",
+            fg_color="transparent",
+            text_color=("gray10", "gray90"),
+            hover_color=("gray70", "gray30")
+        )
+        self.security_btn.grid(row=5, column=0, padx=20, pady=10, sticky="ew")
         
         # Theme toggle
         self.theme_label = ctk.CTkLabel(
@@ -156,17 +170,26 @@ class PCCleanerApp(ctk.CTk):
         self.scanner_tab.grid(row=0, column=0, sticky="nsew")
         self.current_tab = "scanner"
         self.highlight_button(self.scanner_btn)
+
+    def show_security(self):
+        """Show security hardening tab"""
+        self.hide_all_tabs()
+        self.security_tab.grid(row=0, column=0, sticky="nsew")
+        self.current_tab = "security"
+        self.highlight_button(self.security_btn)
     
     def hide_all_tabs(self):
         """Hide all tabs"""
         self.dashboard.grid_forget()
         self.cleaner_tab.grid_forget()
         self.scanner_tab.grid_forget()
+        self.security_tab.grid_forget()
         
         # Reset button colors
         self.dashboard_btn.configure(fg_color="transparent")
         self.cleaner_btn.configure(fg_color="transparent")
         self.scanner_btn.configure(fg_color="transparent")
+        self.security_btn.configure(fg_color="transparent")
     
     def highlight_button(self, button):
         """Highlight the active navigation button"""
