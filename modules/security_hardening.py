@@ -57,14 +57,88 @@ class SecurityHardener:
         pass
 
     # ==========================================
-    # TODO: System Posture Checks
+    # System Posture Checks
     # ==========================================
     def check_posture(self):
         """
         Check current system security posture (Firewall, UAC, Defender).
-        TODO: Implement read-only checks returning (current, recommended, needs_fix).
+        Returns a dictionary: { "Check Name": (current_state, recommended_state, needs_fix_bool) }
         """
-        pass
+        if not self.check_os():
+            return {}
+
+        results = {}
+        
+        # 1. Windows Firewall
+        results["Windows Firewall"] = self._audit_firewall()
+            
+        # 2. User Account Control (UAC)
+        results["UAC"] = self._audit_uac()
+
+        # 3. Windows Defender
+        results["Windows Defender"] = self._audit_defender()
+
+        return results
+
+    def _audit_firewall(self):
+        """Check Windows Firewall status (Standard Profile)"""
+        try:
+            import subprocess
+            # 'netsh advfirewall show allprofiles state' is a good check
+            cmd = ["netsh", "advfirewall", "show", "allprofiles", "state"]
+            # Use specific encoding/errors to avoid issues on some non-English systems if possible, 
+            # but standard creates simple text output "State ON"
+            proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+            output = proc.stdout
+            
+            if "State" in output and "ON" in output:
+                # Naive check: if we see "State ON", at least one profile is ON.
+                # Ideally we want all to be on.
+                # If we see "OFF", it might be bad.
+                if "OFF" in output:
+                     return ("Partial/Off", "On", True)
+                return ("On", "On", False)
+            else:
+                return ("Unknown/Off", "On", True)
+        except Exception as e:
+            return (f"Error: {str(e)}", "On", True)
+
+    def _audit_uac(self):
+        """Check UAC Level via Registry"""
+        try:
+            import winreg
+            key_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path) as key:
+                enable_lua, _ = winreg.QueryValueEx(key, "EnableLUA")
+                # EnableLUA=1 means UAC is on. =0 means off.
+                
+                # Check ConsentPromptBehaviorAdmin for stricter levels?
+                # For basic check, EnableLUA is sufficient.
+                current = "Enabled" if enable_lua == 1 else "Disabled"
+                return (current, "Enabled", enable_lua == 0)
+        except WindowsError:
+            return ("Unknown (Access Denied?)", "Enabled", True)
+        except Exception as e:
+            return (f"Error: {str(e)}", "Enabled", True)
+
+    def _audit_defender(self):
+        """Check Windows Defender Real-Time Protection"""
+        try:
+            import subprocess
+            # Get-MpComputerStatus is robust but requires PowerShell
+            cmd = ["powershell", "-Command", "Get-MpComputerStatus | Select-Object -ExpandProperty RealTimeProtectionEnabled"]
+            proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+            output = proc.stdout.strip()
+            
+            if output.lower() == "true":
+                return ("Active", "Active", False)
+            elif output.lower() == "false":
+                return ("Inactive", "Active", True)
+            else:
+                 # Fallback check methods if PS fails or custom AV exists?
+                 return ("Unknown", "Active", True)
+        except Exception as e:
+            return (f"Error: {str(e)}", "Active", True)
 
     # ==========================================
     # TODO: Safe Remediation Layer
