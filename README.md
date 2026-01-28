@@ -23,6 +23,13 @@ A powerful Windows desktop application to clean temporary files, cache, and scan
 - 🔒 **Quarantine System** - Safely isolate threats before deletion
 - 🗑️ **Threat Removal** - Permanently delete detected malware
 
+### Windows Security Hardening (New!)
+- 🛡️ **System Posture Check** - Audit Windows Firewall, UAC, and Defender status
+- 🚦 **Startup Audit** - Detect unsigned applications in Startup and Registry
+- 🔒 **Safe Remediation** - Enable essential security features (Admin only)
+- 📝 **Digital Signature Verification** - Verify publisher identities (uses Sysinternals Sigcheck)
+- ⚠️ **Zero-Risk** - No files are automatically deleted; changes require explicit user confirmation.
+
 ### Dashboard
 - 💻 **System Information** - View OS, processor, and system details
 - 💾 **Disk Usage Monitoring** - Real-time disk space statistics
@@ -105,6 +112,19 @@ The executable will be created in the `dist` folder.
 - Use **Quick Scan** to jump to Malware Scanner
 - Click **Refresh Dashboard** to update statistics
 
+### Security Hardening CLI
+Run the security audit from the command line:
+```bash
+# Check system status
+python security_check.py --posture
+
+# Audit startup items
+python security_check.py --audit
+
+# Dry-run hardening (simulate changes)
+python security_check.py --apply --dry-run
+```
+
 ## ⚙️ Configuration
 
 Edit `config.py` to customize:
@@ -159,8 +179,10 @@ pro/
 ├── ui/
 │   ├── dashboard.py       # Dashboard UI
 │   ├── cleaner_tab.py     # PC Cleaner UI
-│   └── scanner_tab.py     # Malware Scanner UI
+│   ├── scanner_tab.py     # Malware Scanner UI
+│   └── security_tab.py    # Security Hardening UI
 ├── utils/
+│   ├── cli_renderer.py    # CLI formatting helpers
 │   ├── file_operations.py # File handling utilities
 │   └── system_info.py     # System information utilities
 ├── resources/
