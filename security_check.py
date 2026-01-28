@@ -1,13 +1,12 @@
-
 """
 Security Posture Check - CLI Tool
 """
 import sys
 import argparse
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
-from modules.security_hardening import SecurityHardener, STARTUP_REGISTRY_KEYS
+from modules.security_hardening import SecurityHardener
+from utils.cli_renderer import render_posture_table, render_audit_table
 
 def main():
     console = Console()
@@ -31,16 +30,7 @@ def main():
     if args.posture or (not args.audit and not args.apply):
         console.print("\n[bold]System Security Posture[/bold]")
         posture = hardener.check_posture()
-        
-        table = Table(show_header=True, header_style="bold magenta")
-        table.add_column("Check")
-        table.add_column("Status")
-        table.add_column("Recommendation")
-        
-        for name, (current, recommended, needs_fix) in posture.items():
-            status_style = "red" if needs_fix else "green"
-            table.add_row(name, f"[{status_style}]{current}[/{status_style}]", recommended)
-            
+        table = render_posture_table(posture)
         console.print(table)
 
     # 2. Audit
@@ -51,26 +41,7 @@ def main():
         if not items:
             console.print("[yellow]No startup items found.[/yellow]")
         else:
-            table = Table(show_header=True, header_style="bold cyan")
-            table.add_column("Name")
-            table.add_column("Location")
-            table.add_column("Signed?")
-            table.add_column("Publisher")
-            
-            for item in items:
-                signed = item.get("signed", False)
-                verified = item.get("verified", False)
-                
-                if verified:
-                    sign_str = "[green]YES[/green]"
-                elif signed:
-                     sign_str = "[yellow]Unverified[/yellow]"
-                else:
-                    sign_str = "[red]NO[/red]"
-                    
-                pub = item.get("publisher", "Unknown")
-                table.add_row(item['name'], item['location'], sign_str, pub)
-                
+            table = render_audit_table(items)
             console.print(table)
 
     # 3. Apply Hardening
